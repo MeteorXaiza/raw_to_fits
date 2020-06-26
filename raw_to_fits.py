@@ -1,95 +1,87 @@
 # coding:utf-8
 
 
-import argparse
-from math import *
-import re
-
-import numpy as np
-
-from my_functions_2 import *
+from xaizalibs.CMOSanalyzerlib import *
 
 
-def getLsTpOptShape(strFilePath):
-    rawFile = open(strFilePath, 'rb')
-    arrRaw = np.fromfile(rawFile, "int16", -1)
-    arrRaw.byteswap(True)
-    rawLength = arrRaw.size
-    initWidth = int(sqrt(rawLength))
-    lsRet = []
-    cnt = 0
-    while True:
-        width = int(initWidth + cnt)
-        if rawLength % width == 0:
-            lsRet.append((int(rawLength / width), width))
-            lsRet.append((width, int(rawLength / width)))
-        if width == rawLength:
-            break
-        cnt += 1
-    return lsRet
+class Manager():
+    def __init__(self):
+        self.config = Config()
+    def main(self):
+        def getArrRaw(strInputFileAbsPath):
+            print('loading ' + strInputFileAbsPath + '...')
+            rawFile = open(strFilePath, 'rb')
+            arrRaw = np.fromfile(rawFile, "int16", -1)
+            arrRaw.byteswap(True)
+        mkdirs(
+            genLsStrDirPathAndFileName(
+                self.config.lsStrOutputFileAbsPath[0])[0])
+        for cnt in range(len(self.config.lsStrInputFileAbsPath)):
+            arrRaw = getArrRaw(self.config.lsStrInputFileAbsPath[cnt])
+            if self.config.width is None:
+                self.config.defineWidthFromLength(arrRaw.size)
+            if arrRaw.size % self.config.width != 0:
+                print(
+                    'can\'t transfer '
+                    + self.config.lsStrInputFileAbsPath[cnt] + ' by '
+                    + str(self.config.width) + ' as ...')
+                continue
+            arrFits = arrRaw.reshape((int(arrRaw.size / width), width))
+            saveAsFits(
+                arrFits, self.config.lsStrOutputFileAbsPath[cnt], message=True)
 
 
-parser = argparse.ArgumentParser(
-    description='convert raw file to 2d fits file in a directory')
-parser.add_argument('-i', '--input_directory', default='./', help='input directory path (init : ./)')
-parser.add_argument('-w', '--width', help='width of output fits (init : None)')
-parser.add_argument('-m', '--match_file_name', default='(.+)\.raw', help='file name as regular expression (init : (.+)\\.raw)')
-parser.add_argument('-o', '--output_directory', help='directory_path (init : None)')
-args = parser.parse_args()
-
-strInputDirPath = args.input_directory
-strOutputDirPath = args.output_directory
-strMatchFileName = args.match_file_name
-strWidth = args.width
-
-strInputDirPath = getStrAbsPath(strInputDirPath)
-if strInputDirPath[-1] != '/':
-    strInputDirPath += '/'
-
-if strOutputDirPath is None:
-    strOutputDirPath = strInputDirPath
-if strOutputDirPath[-1] != '/':
-    strOutputDirPath += '/'
-
-lsStrFileName = sorted(getLsStrFileName(strInputDirPath, match=strMatchFileName))
-if len(lsStrFileName) <= 0:
-    print('files are not found.')
-    quit()
-
-if strWidth is None:
-    strFilePath = strInputDirPath + lsStrFileName[0]
-    print('searching optimized width of ' + strFilePath + '...')
-    lsTpOptShape = getLsTpOptShape(strFilePath)
-    print('finished.')
-    for cnt, tpOptShape in enumerate(lsTpOptShape):
-        print(str(cnt) + ' : width=' + str(tpOptShape[1]) + ' (height=' + str(tpOptShape[0]) + ')')
-    while True:
-        strInput = input('select : ')
-        match = re.match('\d+', strInput)
-        if match is None:
-            continue
-        selectIndex = int(strInput)
-        if selectIndex > len(lsTpOptShape):
-            continue
-        break
-    width = lsTpOptShape[selectIndex][1]
-else:
-    width = int(strWidth)
-
-
-for cnt in range(len(lsStrFileName)):
-    strFileName = lsStrFileName[cnt]
-    strFilePath = strInputDirPath + strFileName
-    rawFile = open(strFilePath, 'rb')
-    arrRaw = np.fromfile(rawFile, "int16", -1)
-    if arrRaw.size % width != 0:
-        prints(
-            'ERROR',
-            'in ' + strFileName,
-            'invalid shape!',
-            'length of raw file : ' + str(arrRaw.size)
-            )
-    arrRaw.byteswap(True)
-    arrFits = arrRaw.reshape((int(arrRaw.size / width), width))
-    match = re.match(strMatchFileName, strFileName)
-    saveAsFits(arrFits, strOutputDirPath + match.group(1) + '.fits', message=True)
+class Config():
+    def __init__(self):
+        self.lsStrInputFileAbsPath = None
+        self.lsStrOutputFileAbsPath = None
+        self.width = None
+        self.set()
+    def set(self):
+        parser = argparse.ArgumentParser(
+            description='convert raw file to 2d fits file in a directory')
+        parser.add_argument('-i', '--input_directory', default='./', help='input directory path (init : ./)')
+        parser.add_argument('-m', '--match_file_name', default='.+\.raw', help='file name as regular expression (init : .+\\.raw)')
+        parser.add_argument('-w', '--width', help='width of output fits (init : None)')
+        parser.add_argument('-o', '--output_directory', help='directory_path (init : None)')
+        args = parser.parse_args()
+        strInputDirAbsPath = getStrAbsPath(args.input_directory)
+        strOutputDirAbsPath = getStrAbsPath(args.output_directory)
+        lsStrInputFileName = getLsStrFileName(strInputDirAbsPath)
+        for strInputFileName in lsStrInputFileName:
+            self.lsStrInputFileAbsPath.append(
+                strInputDirAbsPath + strInputFileName)
+            match = re.match('(.+)\..+?', strInputFileName)
+            if match is not None:
+                strOutPutFileName = match.group(1) + '.fits'
+            else:
+                strOutPutFileName = strInputFileName + '.fits'
+            self.lsStrOutputFileAbsPath.append(
+                strOutputDirAbsPath + strOutputFileName)
+        if args.width is not None:
+            self.width = int(args.width)
+    def defineWidthFromLength(self, length):
+        def getLsTpOptShape(length):
+            initWidth = int(sqrt(length))
+            lsRet = []
+            cnt = 0
+            while True:
+                width = int(initWidth + cnt)
+                if Length % width == 0:
+                    lsRet.append((int(length / width), width))
+                    lsRet.append((width, int(length / width)))
+                if width == length:
+                    break
+                cnt += 1
+            return lsRet
+        print('searching optimized width...')
+        lsTpOptShape = getLsTpOptShape(length)
+        print('finished.')
+        for cnt, tpOptShape in enumerate(lsTpOptShape):
+            print(
+                str(cnt) + ' : width=' + str(tpOptShape[1]) + ' (height='
+                + str(tpOptShape[0]) + ')')
+        strSelectIndex = getStrSelect(
+            strMessage='select : ',
+            lsStrValid=list(range(len(lsTpOptShape))))
+        self.width = lsTpOptShape[int(strSelectIndex)][1]
