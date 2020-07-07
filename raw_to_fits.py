@@ -1,8 +1,12 @@
 # coding:utf-8
 
 
+import argparse
+
 from xaizalibs.CMOSanalyzerlib import *
 
+
+print('ver_2.0.0')
 
 class Manager():
     def __init__(self):
@@ -10,9 +14,11 @@ class Manager():
     def main(self):
         def getArrRaw(strInputFileAbsPath):
             print('loading ' + strInputFileAbsPath + '...')
-            rawFile = open(strFilePath, 'rb')
+            rawFile = open(strInputFileAbsPath, 'rb')
+            print('finished.')
             arrRaw = np.fromfile(rawFile, "int16", -1)
             arrRaw.byteswap(True)
+            return arrRaw
         mkdirs(
             genLsStrDirPathAndFileName(
                 self.config.lsStrOutputFileAbsPath[0])[0])
@@ -26,9 +32,11 @@ class Manager():
                     + self.config.lsStrInputFileAbsPath[cnt] + ' by '
                     + str(self.config.width) + ' as ...')
                 continue
-            arrFits = arrRaw.reshape((int(arrRaw.size / width), width))
+            arrFits = arrRaw.reshape(
+                (int(arrRaw.size / self.config.width), self.config.width))
             saveAsFits(
                 arrFits, self.config.lsStrOutputFileAbsPath[cnt], message=True)
+            print('')
 
 
 class Config():
@@ -47,15 +55,21 @@ class Config():
         args = parser.parse_args()
         strInputDirAbsPath = getStrAbsPath(args.input_directory)
         strOutputDirAbsPath = getStrAbsPath(args.output_directory)
-        lsStrInputFileName = getLsStrFileName(strInputDirAbsPath)
+        if strOutputDirAbsPath[-1] != '/':
+            strOutputDirAbsPath += '/'
+        print(strInputDirAbsPath, strOutputDirAbsPath)
+        lsStrInputFileName = sorted(
+            getLsStrFileName(strInputDirAbsPath, match=args.match_file_name))
+        self.lsStrInputFileAbsPath = []
+        self.lsStrOutputFileAbsPath = []
         for strInputFileName in lsStrInputFileName:
             self.lsStrInputFileAbsPath.append(
                 strInputDirAbsPath + strInputFileName)
             match = re.match('(.+)\..+?', strInputFileName)
             if match is not None:
-                strOutPutFileName = match.group(1) + '.fits'
+                strOutputFileName = match.group(1) + '.fits'
             else:
-                strOutPutFileName = strInputFileName + '.fits'
+                strOutputFileName = strInputFileName + '.fits'
             self.lsStrOutputFileAbsPath.append(
                 strOutputDirAbsPath + strOutputFileName)
         if args.width is not None:
@@ -67,7 +81,7 @@ class Config():
             cnt = 0
             while True:
                 width = int(initWidth + cnt)
-                if Length % width == 0:
+                if length % width == 0:
                     lsRet.append((int(length / width), width))
                     lsRet.append((width, int(length / width)))
                 if width == length:
@@ -85,3 +99,7 @@ class Config():
             strMessage='select : ',
             lsStrValid=list(range(len(lsTpOptShape))))
         self.width = lsTpOptShape[int(strSelectIndex)][1]
+
+
+manager = Manager()
+manager.main()
