@@ -54,7 +54,12 @@ class Config():
         parser.add_argument('-o', '--output_directory', help='directory_path (init : None)')
         args = parser.parse_args()
         strInputDirAbsPath = getStrAbsPath(args.input_directory)
-        strOutputDirAbsPath = getStrAbsPath(args.output_directory)
+        if args.output_directory is None:
+            strOutputDirAbsPath = strInputDirAbsPath
+        else:
+            strOutputDirAbsPath = getStrAbsPath(args.output_directory)
+        if strInputDirAbsPath[-1] != '/':
+            strInputDirAbsPath += '/'
         if strOutputDirAbsPath[-1] != '/':
             strOutputDirAbsPath += '/'
         print(strInputDirAbsPath, strOutputDirAbsPath)
@@ -95,9 +100,12 @@ class Config():
             print(
                 str(cnt) + ' : width=' + str(tpOptShape[1]) + ' (height='
                 + str(tpOptShape[0]) + ')')
+        lsStrValidIndex = []
+        for cnt in range(len(lsTpOptShape)):
+            lsStrValidIndex.append(str(cnt))
         strSelectIndex = getStrSelect(
             strMessage='select : ',
-            lsStrValid=list(range(len(lsTpOptShape))))
+            lsStrValid=lsStrValidIndex)
         self.width = lsTpOptShape[int(strSelectIndex)][1]
 
 
